@@ -12,7 +12,7 @@
 # @TEST-END-FILE
 
 @load frameworks/communication/listen
-@load ../scripts/item_expire
+@load item_expire
 
 redef Intel::read_files += { "../intel.dat" };
 redef enum Intel::Where += { SOMEWHERE };
