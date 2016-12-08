@@ -5,12 +5,17 @@
 module Intel;
 
 export {
+	## Default expiration interval for single intelligence items that
+	## is used in case the loaded intel file does not specify expire
+	## metadata. A negative value disables expiration for these items.
+	const default_per_item_expiration = -1 min &redef;
+
 	redef record MetaData += {
 		## Expiration interval of the intelligence item. If there was
 		## no hit in the given timespan, the item will be removed. In
 		## case of multiple meta data instances, each instance will be
-		## treated separately.
-		expire:     interval &optional;
+		## treated separately. A negative value disables expiration.
+		expire:     interval &default=default_per_item_expiration;
 
 		## Internal value: Keeps the time of the last hit on that item.
 		last_match: time     &default=network_time();
@@ -35,7 +40,7 @@ hook extend_match(info: Info, s: Seen, items: set[Item])
 	for ( item in items )
 		{
 		local meta = item$meta;
-		if ( meta?$expire &&
+		if ( meta$expire > 0 sec &&
 			 meta$last_match + meta$expire < network_time() &&
 			 ! hook single_item_expired(item) )
 			{
@@ -58,7 +63,7 @@ hook Intel::item_expired(indicator: string, indicator_type: Type, metas: set[Met
 	for ( meta in metas )
 		{
 		# Check for expired items
-		if ( meta?$expire &&
+		if ( meta$expire > 0 sec &&
 			 meta$last_match + meta$expire < network_time() )
 			{
 			local item: Intel::Item = [

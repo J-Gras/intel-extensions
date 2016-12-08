@@ -4,9 +4,13 @@
 # @TEST-EXEC: cat broproc/.stdout >> output
 # @TEST-EXEC: TEST_DIFF_CANONIFIER="$SCRIPTS/diff-remove-timestamps" btest-diff output
 
-# @TEST-START-FILE intel.dat
+# @TEST-START-FILE intel_plain.dat
+#fields	indicator	indicator_type	meta.source	meta.desc
+2.0.0.0	Intel::ADDR	source1	this host is bad
+# @TEST-END-FILE
+
+# @TEST-START-FILE intel_expire.dat
 #fields	indicator	indicator_type	meta.source	meta.desc	meta.expire
-2.0.0.0	Intel::ADDR	source1	this host is bad	3
 3.0.0.0	Intel::ADDR	source1	this host is bad	3
 4.0.0.0	Intel::ADDR	source1	this host is bad	5
 # @TEST-END-FILE
@@ -14,9 +18,10 @@
 @load frameworks/communication/listen
 @load item_expire
 
-redef Intel::read_files += { "../intel.dat" };
+redef Intel::read_files += { "../intel_plain.dat", "../intel_expire.dat" };
 redef enum Intel::Where += { SOMEWHERE };
 redef Intel::item_expiration = 4sec;
+redef Intel::default_per_item_expiration = 3sec;
 redef table_expire_interval = 1sec;
 
 global runs = 0;
