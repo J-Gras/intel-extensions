@@ -3,7 +3,12 @@
 from pybroker import *
 from select import select
 from argparse import ArgumentParser
+from time import sleep
 
+operations = (
+	'query',
+	'remove',
+	'insert')
 
 intel_types = (
 	'ADDR',
@@ -18,8 +23,10 @@ intel_types = (
 
 
 def get_arguments():
-	parser = ArgumentParser(description='This script deletes intelligence'
- 		' indicators from Bro using broker.')
+	parser = ArgumentParser(description='This script allows to manage'
+		' intelligence indicators of a Bro instance using broker.')
+	parser.add_argument('operation', metavar='OPERATION', type=str.lower,
+		choices=operations, help='Operation to execute')
 	parser.add_argument('indicator', metavar='INDICATOR', type=str,
 		help='Intel indicator')
 	parser.add_argument('indicator_type', metavar='TYPE', type=str.upper,
@@ -33,11 +40,14 @@ def get_arguments():
 
 def main():
 	args = get_arguments()
+	op = args.operation
 
-	ep_bro = endpoint("bro_conn")
+	ep_bro = endpoint("intel-client")
 	ep_bro.peer(args.host, args.port)
 	epq_bro = ep_bro.outgoing_connection_status()
+	mq_bro = message_queue("bro/intel/{}".format(op), ep_bro)
 
+	# Establish connection
 	select([epq_bro.fd()],[],[])
 	msgs = epq_bro.want_pop()
 	for m in msgs:
@@ -45,14 +55,36 @@ def main():
 			print("Failed to establish connection!")
 			return
 
+	# Send operation
 	m = message([
-		data("Intel::remote_remove"),
+		data("Intel::remote_{}".format(op)),
 		data(args.indicator),
 		data(args.indicator_type)])
-	ep_bro.send("bro/intel/remove", m)
-	print("Sent remove command for \"%s\" (%s)."
-		% (args.indicator, args.indicator_type))
+	ep_bro.send("bro/intel/{}".format(op), m)
+	print("Sent %s command for \"%s\" (%s)."
+		% (op, args.indicator, args.indicator_type))
 
+	# Await reply
+	while True:
+		select([mq_bro.fd()], [], [], 2)
+		msgs = mq_bro.want_pop()
+
+		if not msgs:
+			print("Request timed out.");
+			return;
+
+		for m in msgs:
+			print("debug: {}".format(m[0].as_string()))
+
+			if m[0].as_string() == "Intel::remote_{}_reply".format(op):
+				res = "Failed to {}".format(op)
+				if m[1].as_bool():
+					res = "Successfully executed {}".format(op);				
+				indicator = m[2].as_string()
+				print("{} \"{}\"".format(res, indicator))
+				return;
+			else:
+				continue
 
 if __name__ == '__main__':
 	main()
