@@ -1,8 +1,8 @@
-# @TEST-EXEC: btest-bg-run broproc bro %INPUT
+# @TEST-EXEC: btest-bg-run broproc bro ../../../../scripts/item_expire %INPUT
 # @TEST-EXEC: btest-bg-wait -k 10
 # @TEST-EXEC: cat broproc/intel.log > output
 # @TEST-EXEC: cat broproc/.stdout >> output
-# @TEST-EXEC: TEST_DIFF_CANONIFIER="$SCRIPTS/diff-remove-timestamps" btest-diff output
+# @TEST-EXEC: btest-diff output
 
 # @TEST-START-FILE intel_plain.dat
 #fields	indicator	indicator_type	meta.source	meta.desc
@@ -16,7 +16,6 @@
 # @TEST-END-FILE
 
 @load frameworks/communication/listen
-@load item_expire
 
 redef Intel::read_files += { "../intel_plain.dat", "../intel_expire.dat" };
 redef enum Intel::Where += { SOMEWHERE };
