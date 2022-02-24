@@ -24,7 +24,7 @@ intel_types = (
 
 def get_arguments():
 	parser = ArgumentParser(description='This script allows to manage'
-		' intelligence indicators of a Bro instance using broker.')
+		' intelligence indicators of a Zeek instance using broker.')
 	parser.add_argument('operation', metavar='OPERATION', type=str.lower,
 		choices=operations, help='Operation to execute')
 	parser.add_argument('indicator', metavar='INDICATOR', type=str,
@@ -42,14 +42,14 @@ def main():
 	args = get_arguments()
 	op = args.operation
 
-	ep_bro = endpoint("intel-client")
-	ep_bro.peer(args.host, args.port)
-	epq_bro = ep_bro.outgoing_connection_status()
-	mq_bro = message_queue("bro/intel/{}".format(op), ep_bro)
+	ep_zeek = endpoint("intel-client")
+	ep_zeek.peer(args.host, args.port)
+	epq_zeek = ep_zeek.outgoing_connection_status()
+	mq_zeek = message_queue("zeek/intel/{}".format(op), ep_zeek)
 
 	# Establish connection
-	select([epq_bro.fd()],[],[])
-	msgs = epq_bro.want_pop()
+	select([epq_zeek.fd()],[],[])
+	msgs = epq_zeek.want_pop()
 	for m in msgs:
 		if m.status != outgoing_connection_status.tag_established:
 			print("Failed to establish connection!")
@@ -60,14 +60,14 @@ def main():
 		data("Intel::remote_{}".format(op)),
 		data(args.indicator),
 		data(args.indicator_type)])
-	ep_bro.send("bro/intel/{}".format(op), m)
+	ep_zeek.send("zeek/intel/{}".format(op), m)
 	print("Sent %s command for \"%s\" (%s)."
 		% (op, args.indicator, args.indicator_type))
 
 	# Await reply
 	while True:
-		select([mq_bro.fd()], [], [], 2)
-		msgs = mq_bro.want_pop()
+		select([mq_zeek.fd()], [], [], 2)
+		msgs = mq_zeek.want_pop()
 
 		if not msgs:
 			print("Request timed out.");
