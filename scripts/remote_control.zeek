@@ -4,9 +4,9 @@ module Intel;
 
 export {
 	## Broker port.
-	const broker_port = 5012/tcp &redef;
+	option broker_port = 5012/tcp;
 	## Broker bind address.
-	const broker_addr = 127.0.0.1 &redef;
+	option broker_addr = 127.0.0.1;
 
 	## Event to raise for intel item query.
 	global remote_query: event(indicator: string, indicator_type: string);
@@ -66,19 +66,17 @@ function compose_item(indicator: string, indicator_type: Type): Item
 	return res;
 	}
 
-event bro_init()
+event zeek_init()
 	{
-	Broker::enable();
-	Broker::subscribe_to_events("bro/intel/");
-	Broker::listen(broker_port, fmt("%s", broker_addr));
+	Broker::subscribe("zeek/intel/");
+	Broker::listen(fmt("%s", broker_addr), broker_port);
 	}
 
 event Intel::remote_query(indicator: string, indicator_type: string)
 	{
 	local s = compose_seen(indicator, type_tbl[indicator_type]);
 	# Lookup indicator and return result
-	local evt = Broker::event_args(remote_query_reply, find(s), indicator);
-	Broker::send_event("bro/intel/query", evt);
+	Broker::publish("zeek/intel/query", remote_query_reply, find(s), indicator);
 	}
 
 event Intel::remote_remove(indicator: string, indicator_type: string)
@@ -86,8 +84,7 @@ event Intel::remote_remove(indicator: string, indicator_type: string)
 	local item = compose_item(indicator, type_tbl[indicator_type]);
 	remove(item, T);
 	# Always indicate success
-	local evt = Broker::event_args(remote_remove_reply, T, indicator);
-	Broker::send_event("bro/intel/remove", evt);
+	Broker::publish("zeek/intel/remove", remote_remove_reply, T, indicator);
 	}
 
 event Intel::remote_insert(indicator: string, indicator_type: string)
@@ -95,6 +92,5 @@ event Intel::remote_insert(indicator: string, indicator_type: string)
 	local item = compose_item(indicator, type_tbl[indicator_type]);
 	insert(item);
 	# Always indicate success
-	local evt = Broker::event_args(remote_insert_reply, T, indicator);
-	Broker::send_event("bro/intel/insert", evt);
+	Broker::publish("zeek/intel/insert", remote_insert_reply, T, indicator);
 	}

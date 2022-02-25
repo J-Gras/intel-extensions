@@ -1,9 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from pybroker import *
-from select import select
+import broker
+
 from argparse import ArgumentParser
-from time import sleep
 
 operations = (
 	'query',
@@ -20,6 +19,7 @@ intel_types = (
 	'USER_NAME',
 	'CERT_HASH',
 	'PUBKEY_HASH')
+
 
 
 def get_arguments():
@@ -42,49 +42,41 @@ def main():
 	args = get_arguments()
 	op = args.operation
 
-	ep_zeek = endpoint("intel-client")
-	ep_zeek.peer(args.host, args.port)
-	epq_zeek = ep_zeek.outgoing_connection_status()
-	mq_zeek = message_queue("zeek/intel/{}".format(op), ep_zeek)
+	ep_zeek = broker.Endpoint()
+	sub_zeek_intel = ep_zeek.make_subscriber(f"zeek/intel/{op}")
+	sub_zeek_state = ep_zeek.make_status_subscriber(True)
+	ep_zeek.peer(args.host, args.port, retry=0)
 
 	# Establish connection
-	select([epq_zeek.fd()],[],[])
-	msgs = epq_zeek.want_pop()
-	for m in msgs:
-		if m.status != outgoing_connection_status.tag_established:
-			print("Failed to establish connection!")
+	#TODO: see https://github.com/zeek/broker/issues/18
+	for st in sub_zeek_state.get(1, 0.5):
+		if not (type(st) == broker.Status and st.code() == broker.SC.PeerAdded):
+			print(f"Failed to establish connection! ({st.code()})")
 			return
 
 	# Send operation
-	m = message([
-		data("Intel::remote_{}".format(op)),
-		data(args.indicator),
-		data(args.indicator_type)])
-	ep_zeek.send("zeek/intel/{}".format(op), m)
-	print("Sent %s command for \"%s\" (%s)."
-		% (op, args.indicator, args.indicator_type))
+	evt_op = broker.zeek.Event(f"Intel::remote_{op}",
+		args.indicator,
+		args.indicator_type)
+	ep_zeek.publish(f"zeek/intel/{op}", evt_op)
+	print(f"Sent {op} command for \"{args.indicator}\" ({args.indicator_type}).")
 
 	# Await reply
-	while True:
-		select([mq_zeek.fd()], [], [], 2)
-		msgs = mq_zeek.want_pop()
+	for (topic, data) in sub_zeek_intel.get(1, 2.0):
+		evt_rep = broker.zeek.Event(data)
+		if evt_rep.name() != f"Intel::remote_{op}_reply":
+			print("Received unexpected event.")
+			return
+		success = evt_rep.args()[0]
+		indicator = evt_rep.args()[1]
+		if success:
+			print(f"Successfully executed {op} \"{indicator}\"")
+		else:
+			print(f"Failed to {op} \"{indicator}\"")
+		return
 
-		if not msgs:
-			print("Request timed out.");
-			return;
-
-		for m in msgs:
-			print("debug: {}".format(m[0].as_string()))
-
-			if m[0].as_string() == "Intel::remote_{}_reply".format(op):
-				res = "Failed to {}".format(op)
-				if m[1].as_bool():
-					res = "Successfully executed {}".format(op);				
-				indicator = m[2].as_string()
-				print("{} \"{}\"".format(res, indicator))
-				return;
-			else:
-				continue
+	print("Request timed out.");
+	return
 
 if __name__ == '__main__':
 	main()
