@@ -19,8 +19,8 @@ event Intel::match(s: Seen, items: set[Item])
 
 		# Move files using mv
 		local ret = system(fmt("mv \"%s\" \"%s\"",
-			str_shell_escape(ex_path),
-			str_shell_escape(pre_path)
+			safe_shell_quote(ex_path),
+			safe_shell_quote(pre_path)
 			));
 	}
 }
