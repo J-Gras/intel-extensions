@@ -81,14 +81,19 @@ function preserve_match(s: Seen)
 		}
 	}
 
-@if ( Cluster::is_enabled() )
-event Intel::match_remote(s: Seen)
-@else
+@if ( !Cluster::is_enabled() )
 event Intel::match(s: Seen, items: set[Item])
-@endif
 	{
 	preserve_match(s);
 	}
+@endif
+
+@if ( Cluster::is_enabled() && Cluster::local_node_type() == Cluster::WORKER )
+event Intel::match_remote(s: Seen)
+	{
+	preserve_match(s);
+	}
+@endif
 
 event file_state_remove(f: fa_file)
 	{
